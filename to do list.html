@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>To-Do List App</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{
+      font-family:'Poppins',sans-serif;
+      background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);
+      color:#333;min-height:100vh;
+      display:flex;flex-direction:column;
+      justify-content:center;align-items:center;
+      padding:20px;
+    }
+    header,footer{text-align:center;margin-bottom:.5px}
+    header h1{font-size:2.5rem;color:#fff;margin-bottom:10px}
+    footer p{color:#fff;font-size:.9rem}
+    .todo-container{
+      background:#fff;border-radius:12px;
+      box-shadow:0 4px 10px rgba(0,0,0,0.1);
+      padding:30px;width:100%;max-width:500px;
+      display:flex;flex-direction:column;gap:20px;
+    }
+    .input-section{display:flex;gap:10px}
+    #task-input{
+      flex:1;padding:12px;border:1px solid #ddd;border-radius:8px;
+      font-size:1rem;transition:border-color .3s;
+    }
+    #task-input:focus{outline:none;border-color:#667eea}
+    #add-task{
+      padding:12px 20px;background:#667eea;color:#fff;border:none;
+      border-radius:8px;cursor:pointer;font-size:1rem;transition:background .3s;
+    }
+    #add-task:hover{background:#5a67d8}
+    .filter-section{display:flex;justify-content:center;gap:10px}
+    .filter-btn{
+      padding:8px 16px;background:#f0f0f0;border:none;
+      border-radius:6px;cursor:pointer;font-size:.9rem;transition:background .3s;
+    }
+    .filter-btn.active{background:#667eea;color:#fff}
+    .filter-btn:hover{background:#ddd}
+    #task-list{list-style:none;padding:0}
+    .task-item{
+      display:flex;align-items:center;padding:12px;
+      border-bottom:1px solid #eee;transition:all .3s ease;
+      opacity:1;transform:translateY(0);
+    }
+    .task-item.completed .task-text{text-decoration:line-through;color:#aaa}
+    .task-checkbox{margin-right:10px;cursor:pointer}
+    .task-text{flex:1;cursor:pointer}
+    .delete-btn{
+      background:none;border:none;color:#e74c3c;font-size:1.2rem;
+      cursor:pointer;transition:color .3s;
+    }
+    .delete-btn:hover{color:#c0392b}
+    #clear-all{
+      padding:10px;background:#e74c3c;color:#fff;border:none;
+      border-radius:8px;cursor:pointer;font-size:1rem;transition:background .3s;
+    }
+    #clear-all:hover{background:#c0392b}
+    .toast{
+      position:fixed;bottom:20px;left:50%;
+      transform:translateX(-50%);
+      background:#333;color:#fff;padding:10px 20px;
+      border-radius:8px;opacity:0;transition:opacity .5s;
+      pointer-events:none;
+    }
+    .toast.show{opacity:1}
+    @media(max-width:600px){
+      .todo-container{padding:20px;max-width:100%}
+      header h1{font-size:2rem}
+      .input-section{flex-direction:column}
+      .filter-section{flex-wrap:wrap}
+    }
+  </style>
+</head>
+<body>
+  <header><h1>My To-Do List</h1></header>
+  <main>
+    <div class="todo-container">
+      <div class="input-section">
+        <input type="text" id="task-input" placeholder="Enter a new task..." />
+        <button id="add-task">Add</button>
+      </div>
+      <div class="filter-section">
+        <button class="filter-btn active" data-filter="all">All</button>
+        <button class="filter-btn" data-filter="pending">Pending</button>
+        <button class="filter-btn" data-filter="completed">Completed</button>
+      </div>
+      <ul id="task-list"></ul>
+      <button id="clear-all">Clear All</button>
+    </div>
+  </main>
+  <footer><p>&copy; 2023 To-Do List App</p></footer>
+  <div id="toast" class="toast"></div>
+  <script>
+    const taskInput=document.getElementById('task-input'),
+      addTaskBtn=document.getElementById('add-task'),
+      taskList=document.getElementById('task-list'),
+      clearAllBtn=document.getElementById('clear-all'),
+      filterBtns=document.querySelectorAll('.filter-btn'),
+      toast=document.getElementById('toast');
+    document.addEventListener('DOMContentLoaded',loadTasks);
+    addTaskBtn.addEventListener('click',addTask);
+    taskInput.addEventListener('keypress',e=>{if(e.key==='Enter')addTask()});
+    clearAllBtn.addEventListener('click',clearAllTasks);
+    filterBtns.forEach(btn=>btn.addEventListener('click',filterTasks));
+    function addTask(){
+      const taskText=taskInput.value.trim();
+      if(taskText===''){showToast('Please enter a task!');return;}
+      const task={id:Date.now(),text:taskText,completed:false};
+      addTaskToDOM(task);saveTaskToStorage(task);
+      taskInput.value='';showToast('Task added!');
+    }
+    function addTaskToDOM(task){
+      const li=document.createElement('li');
+      li.className='task-item';li.dataset.id=task.id;
+      if(task.completed)li.classList.add('completed');
+      li.innerHTML=`
+        <input type="checkbox" class="task-checkbox" ${task.completed?'checked':''}>
+        <span class="task-text">${task.text}</span>
+        <button class="delete-btn">&times;</button>`;
+      li.querySelector('.task-checkbox').addEventListener('change',toggleComplete);
+      li.querySelector('.task-text').addEventListener('click',toggleComplete);
+      li.querySelector('.delete-btn').addEventListener('click',deleteTask);
+      taskList.appendChild(li);
+    }
+    function toggleComplete(e){
+      const li=e.target.closest('.task-item'),
+        id=li.dataset.id;
+      li.classList.toggle('completed');
+      updateTaskInStorage(id,li.classList.contains('completed'));
+      showToast('Task updated!');
+    }
+    function deleteTask(e){
+      const li=e.target.closest('.task-item'),
+        id=li.dataset.id;
+      li.style.opacity='0';li.style.transform='translateY(-10px)';
+      setTimeout(()=>{li.remove();removeTaskFromStorage(id);showToast('Task deleted!')},300);
+    }
+    function clearAllTasks(){
+      if(confirm('Are you sure you want to clear all tasks?')){
+        taskList.innerHTML='';localStorage.removeItem('tasks');
+        showToast('All tasks cleared!');
+      }
+    }
+    function filterTasks(e){
+      const filter=e.target.dataset.filter;
+      filterBtns.forEach(btn=>btn.classList.remove('active'));
+      e.target.classList.add('active');
+      const tasks=document.querySelectorAll('.task-item');
+      tasks.forEach(task=>{
+        switch(filter){
+          case'all':task.style.display='flex';break;
+          case'pending':task.style.display=task.classList.contains('completed')?'none':'flex';break;
+          case'completed':task.style.display=task.classList.contains('completed')?'flex':'none';break;
+        }
+      });
+    }
+    function saveTaskToStorage(task){
+      const tasks=getTasksFromStorage();tasks.push(task);
+      localStorage.setItem('tasks',JSON.stringify(tasks));
+    }
+    function getTasksFromStorage(){return JSON.parse(localStorage.getItem('tasks'))||[]}
+    function updateTaskInStorage(id,completed){
+      const tasks=getTasksFromStorage();
+      const idx=tasks.findIndex(t=>t.id==id);
+      if(idx!==-1){tasks[idx].completed=completed;
+        localStorage.setItem('tasks',JSON.stringify(tasks));
+      }
+    }
+    function removeTaskFromStorage(id){
+      const tasks=getTasksFromStorage().filter(t=>t.id!=id);
+      localStorage.setItem('tasks',JSON.stringify(tasks));
+    }
+    function loadTasks(){
+      const tasks=getTasksFromStorage();
+      tasks.forEach(addTaskToDOM);
+    }
+    function showToast(message){
+      toast.textContent=message;toast.classList.add('show');
+      setTimeout(()=>toast.classList.remove('show'),3000);
+    }
+  </script>
+</body>
+</html>
